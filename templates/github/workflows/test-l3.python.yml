@@ -1,0 +1,47 @@
+# dev-standards: Python（pytest）の L3 のテスト → Allure レポート。bootstrap.sh が .github/workflows/test-l3.yml として置く。
+# L3 ＝ テスト用にデプロイしたサービス・外部サービスのテスト用環境に対するテスト（.claude/rules/testing.md §6.1）。
+# いつ動くか（§6.4）:
+#   - PR：下の paths に当たるファイルを変えたときだけ。PR の必須チェックには入れない（Branch protection に足さない）。
+#   - Dependabot とフォークからの PR では動かさない（secrets が渡らないため。§7 の skip ではなく対象外の宣言）。
+#   - main への push・週1回の定期実行・手動実行（workflow_dispatch）では L3 をすべて流す。
+#   - L3 のテストがまだ無いリポジトリでは、空のレポートを作って緑で終わる。
+# 機能ごとに絞るときは、このファイルを機能ごとに写し（例 test-l3-notify.yml）、paths と実行するテストのファイルをその機能に合わせる。
+name: test-l3
+on:
+  pull_request:
+    paths:
+      # docs/testing/strategy.md の対応表（機能のコードと L3 のテスト）と「共通のコードとみなすパス」に合わせて書き換える
+      - "tests/l3/**"
+      - ".github/workflows/test-l3.yml"
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 0 * * 1" # 毎週月曜 9:00（日本時間）
+  workflow_dispatch:
+# ジョブは test（テストを流す）・report（Allure レポート）に分ける。赤くなったジョブの名前で、どこで落ちたかが分かる。
+jobs:
+  test:
+    # pull_request 以外（push・schedule・workflow_dispatch）では必ず動く
+    if: github.event_name != 'pull_request' || (github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    # env: # L3 が使う秘密情報。Settings > Secrets and variables > Actions に登録する（Allure に添付しない。§3）
+    #   SLACK_TEST_TOKEN: ${{ secrets.SLACK_TEST_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.12"
+      - name: 依存を入れる
+        run: __PY_INSTALL__
+      - name: Python の L3 のテスト（pytest）
+        # 終了コード 5（L3 のテストが1件も無い）は緑として扱う
+        run: pytest -m l3 --alluredir=out/allure-results --junitxml=out/junit-l3.xml || [ $? -eq 5 ]
+      - name: テストの結果（allure-results）を report ジョブに渡す
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: allure-results
+          path: out/allure-results/
+          if-no-files-found: ignore
+          retention-days: 1
+__ALLURE_REPORT_JOB__

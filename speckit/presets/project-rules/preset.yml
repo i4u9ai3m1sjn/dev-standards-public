@@ -1,0 +1,29 @@
+schema_version: "1.0"
+preset:
+  id: "project-rules"
+  name: "dev-standards project rules"
+  version: "0.4.0"
+  description: "テストの依存レベル（tests/l0〜l4）と受け入れシナリオ番号（US<n>/AC<m>）を plan・tasks・テスト名に通し、converge で FR・受け入れシナリオごとにテストがあるかを調べる"
+  author: "dev-standards"
+  license: "MIT"
+requires:
+  speckit_version: ">=1.2.0"
+provides:
+  templates:
+    - type: "command"
+      name: "speckit.tasks"
+      file: "commands/speckit.tasks.md"
+      description: "Generate an actionable, dependency-ordered tasks.md for the feature based on available design artifacts. dev-standards: テストタスクに依存レベルの置き場所（tests/l0〜l4）を、E2E テストタスクに受け入れシナリオ番号（US<n>/AC<m>）と @AC を付ける。"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.plan"
+      file: "commands/speckit.plan.md"
+      description: "Execute the implementation planning workflow using the plan template to generate design artifacts. dev-standards: Project Structure のテストを依存レベル（tests/l0〜l4）で書き、L3 以上に要る秘密情報と実行ワークフローを書く。テストの下限（外部とやり取りする機能に L2 以上、外部サービスには L3 も）と、FR に当てはまる ISTQB の技法を表に書く。"
+      strategy: "append"
+    - type: "command"
+      name: "speckit.converge"
+      file: "commands/speckit.converge.md"
+      description: "Assess the current codebase against the feature's spec, plan, and tasks, then append any remaining unbuilt work as new tasks to tasks.md so implement can complete it. dev-standards: tools/fr_trace.py で FR・受け入れシナリオごとにテストが書かれているかを調べ、テストの無い FR・AC もタスクにする。"
+      strategy: "append"
+tags:
+  - "testing"

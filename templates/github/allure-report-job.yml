@@ -1,0 +1,41 @@
+# dev-standards: テストを実行するワークフローに足す「report」ジョブ（テストのジョブとは分ける）。
+# テストのジョブ（名前は test）が out/allure-results/ を artifact「allure-results」として上げ、このジョブが Allure レポートを1ファイルにする。
+# ジョブ間の受け渡しは GitHub 公式の upload-artifact／download-artifact と needs の形。
+# テストが落ちてもレポートは作る（always()）。テストのジョブが動かなかったとき（L3 の Dependabot・フォークの PR）は作らない。
+  report:
+    needs: test
+    if: always() && needs.test.result != 'skipped'
+    runs-on: ubuntu-latest
+    steps:
+      - name: レポートの設定（allurerc.mjs）だけ取り出す
+        uses: actions/checkout@v7.0.1
+        with:
+          sparse-checkout: allurerc.mjs
+          sparse-checkout-cone-mode: false
+      - name: テストの結果（allure-results）を受け取る
+        # テストが1件も無い・依存のインストールで落ちたなどで結果が無いときも、空のレポートを作る
+        continue-on-error: true
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: allure-results
+          path: out/allure-results
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - name: Allure レポートを1ファイルにまとめる
+        run: |
+          mkdir -p out/allure-results
+          npx -y allure@3.22.1 generate out/allure-results
+          mv out/allure-report/index.html "out/allure-report-${{ github.workflow }}-${{ github.run_number }}.html"
+      - name: Allure レポートを保存する
+        id: allure
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          path: out/allure-report-${{ github.workflow }}-${{ github.run_number }}.html
+          archive: false
+          retention-days: 30
+      - name: レポートのリンクをジョブサマリーに出す
+        if: steps.allure.outputs.artifact-url != ''
+        run: |
+          echo "### Allure レポート" >> "$GITHUB_STEP_SUMMARY"
+          echo "[allure-report-${{ github.workflow }}-${{ github.run_number }}.html](${{ steps.allure.outputs.artifact-url }})（ダウンロードしてダブルクリックで開く）" >> "$GITHUB_STEP_SUMMARY"

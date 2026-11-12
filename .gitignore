@@ -1,0 +1,3 @@
+# Python の副産物（CI の py_compile でも作られる）
+__pycache__/
+*.pyc

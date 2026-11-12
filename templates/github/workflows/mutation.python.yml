@@ -1,0 +1,58 @@
+# dev-standards: ミューテーションテスト（.claude/rules/testing.md §10）。bootstrap.sh が .github/workflows/mutation.yml として置く。
+# PR と main への push は、前回の結果をキャッシュから戻して変えた所だけ流し、変更したコードに生き残りがあれば落とす（tools/mutation_gate.py）。
+# 週1回（と手動実行）は全体をやり直す。差分実行は依存・設定・環境の変化を検出しないため。リポジトリ全体のスコアでは落とさない。
+# 殺す側のテストは L0〜L2（test-report.yml と同じ）。画面の E2E（Playwright）と L3・L4 は使わない。
+name: mutation
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+jobs:
+  mutmut:
+    runs-on: ubuntu-latest
+    env:
+      # PR は比較先ブランチ、push は前のコミット。定期実行・手動実行は空（全体の表だけ出し、落とさない）
+      BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || github.event_name == 'push' && github.event.before || '' }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0  # 変更した行を git diff で出すため
+      - uses: actions/setup-python@v7.1.0
+        with:
+          python-version: "3.12"
+      - name: 依存を入れる
+        run: |
+          __PY_INSTALL__
+          pip install mutmut==3.8.1
+      - name: 前回の結果を戻す（定期実行では戻さず全体をやり直す）
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: mutants/
+          key: mutation-mutmut-${{ github.sha }}
+          restore-keys: mutation-mutmut-
+      - name: ミューテーションテスト（mutmut。変わった関数だけやり直す。設定は pyproject.toml の [tool.mutmut]）
+        run: mutmut run
+      - name: 結果を保存する（次の差分実行の起点）
+        if: always() && hashFiles('mutants/**') != ''
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: mutants/
+          key: mutation-mutmut-${{ github.sha }}
+      - name: 変更したコードの生き残り（tools/mutation_gate.py）
+        if: always() && hashFiles('mutants/**') != ''
+        run: python3 tools/mutation_gate.py --mutmut --base "$BASE" --summary "$GITHUB_STEP_SUMMARY"
+      - name: 生き残りの一覧（差分つき）を保存する
+        id: report
+        if: always() && hashFiles('out/mutation/survivors.md') != ''
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          path: out/mutation/survivors.md
+          archive: false
+          retention-days: 30
+      - name: 一覧のリンクをジョブサマリーに出す
+        if: always() && steps.report.outputs.artifact-url != ''
+        run: echo "[survivors.md](${{ steps.report.outputs.artifact-url }})（mutmut の生き残りと差分）" >> "$GITHUB_STEP_SUMMARY"

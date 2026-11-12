@@ -1,0 +1,43 @@
+# dev-standards: Node（Vitest・Playwright）の L0〜L2 のテスト → FR ごとのテストの有無 → Allure レポート。bootstrap.sh が .github/workflows/test-report.yml として置く。
+# L3 は test-l3.yml、L4 は本番デプロイの後に流す（.claude/rules/testing.md §6.4）。
+name: test-report
+on:
+  pull_request:
+  push:
+    branches: [main]
+# ジョブは test（テストを流す）・fr-trace（FR ごとのテストの有無）・report（Allure レポート）に分ける。赤くなったジョブの名前で、どこで落ちたかが分かる。
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - name: 依存を入れる
+        run: npm ci
+      - name: コンポーネント・統合テスト（Vitest、L0〜L2）
+        run: npx vitest run tests/l0 tests/l1 tests/l2 --passWithNoTests
+      - name: E2E（Playwright、L0〜L2）
+        if: always() && hashFiles('playwright.config.ts') != ''
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test tests/l0 tests/l1 tests/l2 --pass-with-no-tests
+      - name: テストの結果（allure-results）を report ジョブに渡す
+        if: always()
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: allure-results
+          path: out/allure-results/
+          if-no-files-found: ignore
+          retention-days: 1
+  fr-trace:
+    # FR・受け入れシナリオごとのテストの有無（tools/fr_trace.py。testing.md §8）。テストを流さないので依存を入れずに並べて動く。
+    # Status が Implemented の feature にテストの無い FR・AC があるか、タグが存在しない FR・AC を指すと落ちる（テストの結果は見ない）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: FR・受け入れシナリオごとのテストの有無
+        if: hashFiles('specs/*/spec.md') != '' && hashFiles('tools/fr_trace.py') != ''
+        run: python3 tools/fr_trace.py --summary "$GITHUB_STEP_SUMMARY"
+__ALLURE_REPORT_JOB__
