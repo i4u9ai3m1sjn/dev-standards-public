@@ -1,0 +1,18 @@
+{
+  "sources": [
+    {
+      "id": "microsoft-devops-test-taxonomy",
+      "url": "https://learn.microsoft.com/en-us/devops/develop/shift-left-make-testing-fast-reliable",
+      "start": "devops-test-taxonomy",
+      "end": "case-study-shift-left-with-unit-tests",
+      "used_by": ".claude/rules/testing.md §6（依存レベル L0〜L4・実行タイミング）"
+    },
+    {
+      "id": "bazel-common-attributes",
+      "url": "https://bazel.build/reference/be/common-definitions",
+      "start": "common-attributes",
+      "end": "common-attributes-tests",
+      "used_by": ".claude/rules/testing.md §6.2（manual）"
+    }
+  ]
+}

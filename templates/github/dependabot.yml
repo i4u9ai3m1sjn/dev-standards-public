@@ -1,0 +1,14 @@
+# dev-standards: GitHub Actions の更新 PR を Dependabot に作らせる。
+# actions.lock を使うリポジトリでは、Dependabot が同じ PR で lockfile も作り直す。
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # 新しい版が出てから 7 日待ってから PR にする（出たばかりの版が悪意あるものだった場合、
+    # その間に発覚・取り下げされることが多い）。脆弱性の修正（security updates）は待たずに来る。
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
